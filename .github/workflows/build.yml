@@ -1,0 +1,75 @@
+name: Build All Platforms
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      build_platform:
+        description: 'Build target'
+        required: true
+        default: 'all'
+        type: choice
+        options: ['all', 'windows', 'ios']
+
+jobs:
+  # ============================================
+  # Windows EXE build
+  # ============================================
+  build-windows:
+    runs-on: windows-latest
+    if: ${{ github.event.inputs.build_platform == 'all' || github.event.inputs.build_platform == 'windows' }}
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install SDL2 via vcpkg
+        run: |
+          git clone https://github.com/Microsoft/vcpkg.git C:/vcpkg
+          C:/vcpkg/bootstrap-vcpkg.bat
+          C:/vcpkg/vcpkg.exe install sdl2:x64-windows sdl2-ttf:x64-windows sdl2-mixer:x64-windows
+
+      - name: Configure CMake
+        run: |
+          cmake -B build_win `
+            -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake `
+            -G "Visual Studio 17 2022" -A x64
+
+      - name: Build
+        run: cmake --build build_win --config Release
+
+      - name: Upload EXE
+        uses: actions/upload-artifact@v4
+        with:
+          name: SkyRealm_Windows
+          path: build_win/Release/SkyRealm_Desktop.exe
+
+  # ============================================
+  # iOS IPA build (macOS runner)
+  # ============================================
+  build-ios:
+    runs-on: macos-latest
+    if: ${{ github.event.inputs.build_platform == 'all' || github.event.inputs.build_platform == 'ios' }}
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install SDL2
+        run: |
+          brew install sdl2 sdl2_ttf sdl2_mixer
+
+      - name: Build iOS (placeholder)
+        run: |
+          echo "iOS build requires Xcode project setup"
+          echo "SDL2 frameworks installed at:"
+          ls /usr/local/lib/libSDL2*.dylib
+          # 实际构建需要 Xcode project，此处创建占位 IPA
+          mkdir -p build_ios/Payload
+          echo "SkyRealm iOS placeholder" > build_ios/Payload/info.txt
+          cd build_ios && zip -r SkyRealm_iOS.ipa Payload/
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: SkyRealm_iOS
+          path: build_ios/SkyRealm_iOS.ipa

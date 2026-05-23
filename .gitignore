@@ -1,0 +1,15 @@
+build_win/
+build/
+out/
+*.exe
+*.apk
+*.ipa
+*.obj
+*.o
+*.so
+__pycache__/
+.vs/
+.idea/
+*.user
+.DS_Store
+Thumbs.db
