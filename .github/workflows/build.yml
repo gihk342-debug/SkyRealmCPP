@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install SDL2
+      - name: Setup vcpkg + SDL2
         shell: pwsh
         run: |
           if (-not (Test-Path C:/vcpkg)) { git clone --depth 1 https://github.com/Microsoft/vcpkg.git C:/vcpkg }
@@ -32,7 +32,7 @@ jobs:
           cmake -B build_win -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake
           cmake --build build_win --config Release
 
-      - name: Upload
+      - name: Upload EXE
         if: success()
         uses: actions/upload-artifact@v4
         with:
@@ -45,8 +45,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install SDL2
-        run: brew install sdl2 sdl2_ttf sdl2_mixer pkg-config
+      - name: Setup SDL2
+        run: |
+          brew install sdl2 sdl2_ttf sdl2_mixer
+          which sdl2-config
+          sdl2-config --cflags --libs
 
       - name: Build
         run: |
