@@ -12,6 +12,10 @@ inline const SkillDef SKILL_DEFS[] = {
     {"fireball",    15, 4.0f, 0,    0,  40, 120},
 };
 
+// ---- Weather particle types (defined outside Game for external use) ----
+struct SnowFlake { float x, y, vx, vy, life; };
+struct RainDrop  { float x, y, vy, life; };
+
 // ---- Global game state ----
 struct Game {
     World world;
@@ -22,10 +26,6 @@ struct Game {
     // Particles & effects
     std::vector<Particle>    particles;
     std::vector<FloatingText> floatingTexts;
-    std::vector<std::pair<float, float>> raindrops;  // (x, vy)
-    std::vector<std::pair<float, float>> snowflakes; // (x, vy) -- x is drift
-    struct SnowFlake { float x, y, vx, vy, life; };
-    struct RainDrop { float x, y, vy, life; };
     std::vector<SnowFlake>  snows;
     std::vector<RainDrop>   rains;
 

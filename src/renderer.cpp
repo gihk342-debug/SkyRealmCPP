@@ -31,7 +31,7 @@ void initRenderer(SDL_Window*& win, SDL_Renderer*& renderer, TTF_Font*& font, in
 }
 
 // Simple text rendering helper
-static void drawText(SDL_Renderer* r, TTF_Font* font, const char* text, int x, int y,
+void drawText(SDL_Renderer* r, TTF_Font* font, const char* text, int x, int y,
                      SDL_Color color, bool centered = false) {
     if (!font) return;
     SDL_Surface* surf = TTF_RenderUTF8_Blended(font, text, color);
