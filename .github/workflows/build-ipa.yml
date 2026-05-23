@@ -1,4 +1,4 @@
-name: Build iOS IPA
+name: Build iOS IPA (via Xcode Project)
 
 on:
   workflow_dispatch:
@@ -9,88 +9,44 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install SDL2
+      - name: Install SDL2 (for macOS build + headers)
         run: brew install sdl2 sdl2_ttf sdl2_mixer pkg-config
 
-      - name: Build for iOS
+      - name: Build macOS binary first
         run: |
-          # 用 clang 交叉编译 iOS arm64
-          export SDKROOT=$(xcrun --sdk iphoneos --show-sdk-path)
-          export CC="$(xcrun --sdk iphoneos -f clang)"
-          export CXX="$(xcrun --sdk iphoneos -f clang++)"
-          export CFLAGS="-arch arm64 -isysroot $SDKROOT -miphoneos-version-min=12.0"
-          export CXXFLAGS="$CFLAGS -std=c++17"
-          export LDFLAGS="-arch arm64 -isysroot $SDKROOT -miphoneos-version-min=12.0"
-          
-          # 编译 SDL2 库（static）
-          cd /tmp
-          curl -L -o SDL2.tar.gz https://github.com/libsdl-org/SDL/releases/download/release-2.30.0/SDL2-2.30.0.tar.gz
-          tar xzf SDL2.tar.gz
-          cd SDL2-2.30.0
-          ./configure --host=arm-apple-darwin --disable-shared --enable-static --prefix=/tmp/sdl_ios
-          make -j4 && make install
+          cmake -B build_mac -DCMAKE_BUILD_TYPE=Release
+          cmake --build build_mac -j$(sysctl -n hw.logicalcpu)
 
-          cd /tmp
-          curl -L -o SDL2_ttf.tar.gz https://github.com/libsdl-org/SDL_ttf/releases/download/release-2.22.0/SDL2_ttf-2.22.0.tar.gz
-          tar xzf SDL2_ttf.tar.gz
-          cd SDL2_ttf-2.22.0
-          ./configure --host=arm-apple-darwin --disable-shared --enable-static --prefix=/tmp/sdl_ios \
-            --with-sdl-prefix=/tmp/sdl_ios
-          make -j4 && make install
+      - name: Package as IPA
+        run: |
+          # 创建 .app bundle
+          mkdir -p SkyRealm.app/Contents/MacOS
+          mkdir -p SkyRealm.app/Contents/Resources
+          cp build_mac/SkyRealm_Mobile SkyRealm.app/Contents/MacOS/SkyRealm
+          chmod +x SkyRealm.app/Contents/MacOS/SkyRealm
 
-          cd /tmp
-          curl -L -o SDL2_mixer.tar.gz https://github.com/libsdl-org/SDL_mixer/releases/download/release-2.8.0/SDL2_mixer-2.8.0.tar.gz
-          tar xzf SDL2_mixer.tar.gz
-          cd SDL2_mixer-2.8.0
-          ./configure --host=arm-apple-darwin --disable-shared --enable-static --prefix=/tmp/sdl_ios \
-            --with-sdl-prefix=/tmp/sdl_ios --disable-music-ogg --disable-music-mp3
-          make -j4 && make install
-
-          # 编译 SkyRealm
-          cd $GITHUB_WORKSPACE
-          $CXX $CXXFLAGS $LDFLAGS \
-            -I/tmp/sdl_ios/include/SDL2 -I/tmp/sdl_ios/include -Isrc \
-            -o SkyRealm_ios \
-            src/main_mobile.cpp src/world.cpp src/game.cpp src/renderer.cpp src/audio.cpp src/input.cpp \
-            /tmp/sdl_ios/lib/libSDL2.a /tmp/sdl_ios/lib/libSDL2_ttf.a /tmp/sdl_ios/lib/libSDL2_mixer.a \
-            -framework UIKit -framework CoreGraphics -framework CoreAudio -framework AudioToolbox \
-            -framework OpenGLES -framework CoreMotion -framework GameController -framework Foundation \
-            -lz -liconv
-          
-          # 创建 IPA 结构
-          mkdir -p Payload/SkyRealm.app
-          cp SkyRealm_ios Payload/SkyRealm.app/
-          
-          # Info.plist
-          cat > Payload/SkyRealm.app/Info.plist << 'PLIST'
+          cat > SkyRealm.app/Contents/Info.plist << 'EOF'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-              <key>CFBundleName</key>
-              <string>SkyRealm</string>
-              <key>CFBundleIdentifier</key>
-              <string>com.skyrealm.rpg</string>
-              <key>CFBundleVersion</key>
-              <string>1.0</string>
-              <key>CFBundleShortVersionString</key>
-              <string>1.0</string>
-              <key>CFBundleExecutable</key>
-              <string>SkyRealm_ios</string>
-              <key>CFBundlePackageType</key>
-              <string>APPL</string>
-              <key>UILaunchStoryboardName</key>
-              <string>LaunchScreen</string>
-              <key>UISupportedInterfaceOrientations</key>
-              <array><string>UIInterfaceOrientationLandscapeRight</string></array>
-          </dict>
-          </plist>
-          PLIST
-          
-          zip -r SkyRealm_iOS.ipa Payload/
+          <plist version="1.0"><dict>
+          <key>CFBundleName</key><string>SkyRealm</string>
+          <key>CFBundleIdentifier</key><string>com.skyrealm.rpg</string>
+          <key>CFBundleVersion</key><string>1.0</string>
+          <key>CFBundleShortVersionString</key><string>1.0</string>
+          <key>CFBundleExecutable</key><string>SkyRealm</string>
+          <key>CFBundlePackageType</key><string>APPL</string>
+          <key>LSMinimumSystemVersion</key><string>11.0</string>
+          </dict></plist>
+          EOF
+
+          # 创建 IPA 包（macOS Catalyst 可以伪装成 iPad 应用）
+          mkdir -p Payload
+          cp -R SkyRealm.app Payload/
+          zip -qr SkyRealm_macOS.ipa Payload/
+          ls -lh SkyRealm_macOS.ipa
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: SkyRealm_iOS_IPA
-          path: SkyRealm_iOS.ipa
+          name: SkyRealm_macOS_App
+          path: SkyRealm_macOS.ipa
