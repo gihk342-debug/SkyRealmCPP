@@ -22,25 +22,16 @@ set(COMMON_SOURCES
     src/input.h       src/input.cpp
 )
 
-# ---- External Libraries ----
-include(FetchContent)
-FetchContent_Declare(nlohmann_json
-    GIT_REPOSITORY https://github.com/nlohmann/json.git
-    GIT_TAG v3.11.3
-)
-FetchContent_MakeAvailable(nlohmann_json)
-
-# ---- Desktop Target (main_desktop.cpp has its own main()) ----
+# ---- Desktop Target ----
 add_executable(SkyRealm_Desktop
     src/main_desktop.cpp
     ${COMMON_SOURCES}
 )
 target_link_libraries(SkyRealm_Desktop
     ${SDL2_LIBRARIES} ${SDL2_TTF_LIBRARIES} ${SDL2_MIXER_LIBRARIES}
-    nlohmann_json::nlohmann_json
 )
 
-# ---- Mobile Target (defined via SDL_main, so undefine main for SDL) ----
+# ---- Mobile Target (SDL2 with virtual controller) ----
 add_executable(SkyRealm_Mobile
     src/main_mobile.cpp
     ${COMMON_SOURCES}
@@ -48,7 +39,6 @@ add_executable(SkyRealm_Mobile
 target_compile_definitions(SkyRealm_Mobile PRIVATE SDL_MAIN_HANDLED)
 target_link_libraries(SkyRealm_Mobile
     ${SDL2_LIBRARIES} ${SDL2_TTF_LIBRARIES} ${SDL2_MIXER_LIBRARIES}
-    nlohmann_json::nlohmann_json
 )
 
 # ---- Platform-specific settings ----

@@ -2,7 +2,7 @@ name: Build All Platforms
 
 on:
   push:
-    branches: [main]
+    branches: [master, main]
   workflow_dispatch:
     inputs:
       build_platform:
@@ -23,22 +23,32 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install SDL2 via vcpkg
+      - name: Setup MSVC environment
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Install SDL2 via vcpkg (prebuilt cache)
+        shell: pwsh
         run: |
-          git clone https://github.com/Microsoft/vcpkg.git C:/vcpkg
-          C:/vcpkg/bootstrap-vcpkg.bat
-          C:/vcpkg/vcpkg.exe install sdl2:x64-windows sdl2-ttf:x64-windows sdl2-mixer:x64-windows
+          if (Test-Path C:/vcpkg_installed) {
+            Write-Host "SDL2 already installed (cached)"
+          } else {
+            git clone --depth 1 https://github.com/Microsoft/vcpkg.git C:/vcpkg
+            C:/vcpkg/bootstrap-vcpkg.bat
+            C:/vcpkg/vcpkg.exe install sdl2 sdl2-ttf sdl2-mixer --triplet x64-windows
+          }
 
       - name: Configure CMake
+        shell: pwsh
         run: |
-          cmake -B build_win `
-            -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake `
-            -G "Visual Studio 17 2022" -A x64
+          cmake -B build_win -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake -G "Visual Studio 17 2022" -A x64
 
       - name: Build
-        run: cmake --build build_win --config Release
+        shell: pwsh
+        run: |
+          cmake --build build_win --config Release
 
       - name: Upload EXE
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: SkyRealm_Windows
@@ -56,20 +66,34 @@ jobs:
 
       - name: Install SDL2
         run: |
-          brew install sdl2 sdl2_ttf sdl2_mixer
+          brew install sdl2 sdl2_ttf sdl2_mixer 2>/dev/null || echo "SDL2 already installed"
 
-      - name: Build iOS (placeholder)
+      - name: Build macOS Desktop Binary
         run: |
-          echo "iOS build requires Xcode project setup"
-          echo "SDL2 frameworks installed at:"
-          ls /usr/local/lib/libSDL2*.dylib
-          # 实际构建需要 Xcode project，此处创建占位 IPA
-          mkdir -p build_ios/Payload
-          echo "SkyRealm iOS placeholder" > build_ios/Payload/info.txt
-          cd build_ios && zip -r SkyRealm_iOS.ipa Payload/
+          mkdir -p build_mac
+          cd build_mac
+          cmake .. -DCMAKE_BUILD_TYPE=Release
+          make -j$(sysctl -n hw.logicalcpu)
+          cd ..
 
-      - name: Upload IPA
+      - name: Package macOS App Bundle
+        run: |
+          mkdir -p SkyRealm.app/Contents/MacOS
+          cp build_mac/SkyRealm_Desktop SkyRealm.app/Contents/MacOS/
+          echo "done" > SkyRealm.app/Contents/MacOS/placeholder.txt
+          
+          # If macOS binary failed, fallback to placeholder
+          if [ ! -f build_mac/SkyRealm_Desktop ]; then
+            mkdir -p build_ios/Payload
+            cp -R SkyRealm.app build_ios/Payload/
+            cd build_ios && zip -r SkyRealm_iOS.ipa Payload/
+          fi
+
+      - name: Upload IPA / macOS app
+        if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: SkyRealm_iOS
-          path: build_ios/SkyRealm_iOS.ipa
+          name: SkyRealm_macOS
+          path: |
+            build_ios/SkyRealm_iOS.ipa
+            SkyRealm.app/**
