@@ -19,28 +19,20 @@ jobs:
   build-windows:
     runs-on: windows-latest
     if: ${{ github.event.inputs.build_platform == 'all' || github.event.inputs.build_platform == 'windows' }}
-    
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup MSVC environment
-        uses: ilammy/msvc-dev-cmd@v1
-
-      - name: Install SDL2 via vcpkg (prebuilt cache)
+      - name: Install SDL2 via vcpkg
         shell: pwsh
         run: |
-          if (Test-Path C:/vcpkg_installed) {
-            Write-Host "SDL2 already installed (cached)"
-          } else {
-            git clone --depth 1 https://github.com/Microsoft/vcpkg.git C:/vcpkg
-            C:/vcpkg/bootstrap-vcpkg.bat
-            C:/vcpkg/vcpkg.exe install sdl2 sdl2-ttf sdl2-mixer --triplet x64-windows
-          }
+          git clone --depth 1 https://github.com/Microsoft/vcpkg.git C:/vcpkg
+          C:/vcpkg/bootstrap-vcpkg.bat
+          C:/vcpkg/vcpkg.exe install sdl2 sdl2-ttf sdl2-mixer --triplet x64-windows
 
       - name: Configure CMake
         shell: pwsh
         run: |
-          cmake -B build_win -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake -G "Visual Studio 17 2022" -A x64
+          cmake -B build_win -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake
 
       - name: Build
         shell: pwsh
@@ -55,45 +47,31 @@ jobs:
           path: build_win/Release/SkyRealm_Desktop.exe
 
   # ============================================
-  # iOS IPA build (macOS runner)
+  # macOS build
   # ============================================
-  build-ios:
+  build-macos:
     runs-on: macos-latest
     if: ${{ github.event.inputs.build_platform == 'all' || github.event.inputs.build_platform == 'ios' }}
-    
     steps:
       - uses: actions/checkout@v4
 
       - name: Install SDL2
         run: |
-          brew install sdl2 sdl2_ttf sdl2_mixer 2>/dev/null || echo "SDL2 already installed"
+          brew install sdl2 sdl2_ttf sdl2_mixer
 
-      - name: Build macOS Desktop Binary
+      - name: Configure CMake
         run: |
           mkdir -p build_mac
           cd build_mac
           cmake .. -DCMAKE_BUILD_TYPE=Release
-          make -j$(sysctl -n hw.logicalcpu)
-          cd ..
 
-      - name: Package macOS App Bundle
+      - name: Build
         run: |
-          mkdir -p SkyRealm.app/Contents/MacOS
-          cp build_mac/SkyRealm_Desktop SkyRealm.app/Contents/MacOS/
-          echo "done" > SkyRealm.app/Contents/MacOS/placeholder.txt
-          
-          # If macOS binary failed, fallback to placeholder
-          if [ ! -f build_mac/SkyRealm_Desktop ]; then
-            mkdir -p build_ios/Payload
-            cp -R SkyRealm.app build_ios/Payload/
-            cd build_ios && zip -r SkyRealm_iOS.ipa Payload/
-          fi
+          cmake --build build_mac -j$(sysctl -n hw.logicalcpu)
 
-      - name: Upload IPA / macOS app
+      - name: Upload macOS Binary
         if: success()
         uses: actions/upload-artifact@v4
         with:
           name: SkyRealm_macOS
-          path: |
-            build_ios/SkyRealm_iOS.ipa
-            SkyRealm.app/**
+          path: build_mac/SkyRealm_Desktop
