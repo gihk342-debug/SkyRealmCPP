@@ -34,10 +34,12 @@ set(SOURCES src/world.cpp src/game.cpp src/renderer.cpp src/audio.cpp src/input.
 add_executable(SkyRealm_Desktop src/main_desktop.cpp ${SOURCES})
 target_link_libraries(SkyRealm_Desktop PRIVATE ${SDL2_TARGETS})
 
-# ---- Mobile ----
-add_executable(SkyRealm_Mobile src/main_mobile.cpp ${SOURCES})
-target_compile_definitions(SkyRealm_Mobile PRIVATE SDL_MAIN_HANDLED)
-target_link_libraries(SkyRealm_Mobile PRIVATE ${SDL2_TARGETS})
+# ---- Mobile (Windows only -- Android handles separately) ----
+if(WIN32)
+    add_executable(SkyRealm_Mobile src/main_mobile.cpp ${SOURCES})
+    target_compile_definitions(SkyRealm_Mobile PRIVATE SDL_MAIN_HANDLED)
+    target_link_libraries(SkyRealm_Mobile PRIVATE ${SDL2_TARGETS})
+endif()
 
 # ---- Platform defines ----
 if(WIN32)
@@ -45,8 +47,6 @@ if(WIN32)
     target_compile_definitions(SkyRealm_Mobile  PRIVATE PLATFORM_WINDOWS PLATFORM_MOBILE)
 elseif(APPLE)
     target_compile_definitions(SkyRealm_Desktop PRIVATE PLATFORM_MACOS)
-    target_compile_definitions(SkyRealm_Mobile  PRIVATE PLATFORM_IOS PLATFORM_MOBILE)
 else()
     target_compile_definitions(SkyRealm_Desktop PRIVATE PLATFORM_LINUX)
-    target_compile_definitions(SkyRealm_Mobile  PRIVATE PLATFORM_LINUX PLATFORM_MOBILE)
 endif()
